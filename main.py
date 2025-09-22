@@ -1,11 +1,8 @@
 import os
 import requests
-import datetime
-import random
-from PIL import Image
-from PIL import ImageDraw
 from telebot import TeleBot
 from telebot.apihelper import get_file
+from title import processing_image
 
 print('Start telegram bot...')
 
@@ -26,34 +23,9 @@ def message_reply(message):
     url = f"https://api.telegram.org/file/bot{token_bot}/{file_path}"
     response = requests.get(url)
     image = response.content
-    now = datetime.datetime.now().strftime('%Y-%m-%d_%H_%M')
-    folder = os.getenv('PATH_FOLDER')
-    if not os.path.exists(folder):
-        os.mkdir(folder)
-    file_name = f"{now}_{message.chat.id}.jpg"
-    path = os.path.join(folder, file_name)
-    with open(path, 'wb') as f:
-        f.write(image)
-    bot.send_message(message.chat.id, 'Картинка обрабатывается...')
-    image = add_title(path)
-    bot.send_photo(message.chat.id, photo=image)
+    new_image = processing_image(image, message.chat.id)
+    bot.send_photo(message.chat.id, photo=new_image)
 
 
-def get_title() -> str:
-    path = os.getenv("PATH_FILE_STORAGE")
-    with open(path, ) as f:
-        titles = f.readlines()
-    title = random.choice(titles)
-    return title
-
-
-def add_title(path_file):
-    title = get_title()
-    img = Image.open(path_file)
-    image = ImageDraw.Draw(img)
-    image.text((int(img.width/2), int(img.height/1.5)), title)
-    img.show()
-    return img
-
-
-bot.infinity_polling(skip_pending=True)
+if __name__ == '__main__':
+    bot.infinity_polling(skip_pending=True)
