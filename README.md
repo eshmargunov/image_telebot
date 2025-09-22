@@ -3,6 +3,7 @@
 
 ## Этап 1. Создание бота
 Для начала создадим бота, который будем с нами здороваться на команду `/start`
+
 ![image_telebot – README md](https://github.com/eshmargunov/image_telebot/assets/12861849/21106bb0-d294-4d30-8e22-90b1d4579565)
 
 ```python
@@ -21,8 +22,8 @@ def start_message(message):
     bot.send_message(message.chat.id, "Привет")
 
 
-
-bot.infinity_polling(skip_pending=True)
+if __name__ == '__main__':
+    bot.infinity_polling(skip_pending=True)
 ```
 ![image_telebot – main py](https://github.com/eshmargunov/image_telebot/assets/12861849/0a882456-f4b5-4c8b-bfeb-14be1aee3bd3)
 
@@ -49,63 +50,71 @@ def message_reply(message):
     response = requests.get(url)
     image = response.content
 ```
+## Этап 3. Сохранение картинки, добавление к ней надписи и отправка пользователю
 
-3. Сохраняем картинку с правильным именем на компьютер в заранее настроенную папку.  
+3.1 Сохраняем картинку с правильным именем на компьютер в заранее настроенную папку.  
 _Замечание_  
 В требованиях указано имя файла в формате `«YYYY-MM-DD_HH:mm_<user id>.jpg».` с двоеточием. 
 Операционная система не позволяет использовать данный символ поэтому заменим на подчеркивание.
 ```python
-import os
-import requests
 import datetime
-from telebot.apihelper import get_file
+import os
 
-@bot.message_handler(func=lambda message: True, content_types=['photo'])
-def message_reply(message):
-    file_id = message.photo[-1].file_id
-    file_info = get_file(token_bot, file_id)
-    file_path = file_info.get('file_path')
-    url = f"https://api.telegram.org/file/bot{token_bot}/{file_path}"
-    response = requests.get(url)
-    image = response.content
+
+def save_file(folder, chat_id, image):
     now = datetime.datetime.now().strftime('%Y-%m-%d_%H_%M')
-    folder = os.getenv('PATH_FOLDER')
-    os.mkdir(folder)
-    file_name = f"{now}_{message.chat.id}.jpg"
+    file_name = f"{now}_{chat_id}.jpg"
     path = os.path.join(folder, file_name)
     with open(path, 'wb') as f:
         f.write(image)
+    return path
 ```
 
-## Этап 3. Добавление надписи на изображение.
-1. Сделаем функцию для чтения файла-сборника фраз, которая будет нам возвращать одну случайную фразу
+3.2 Выбираем фразу из файла-сборника
+Сделаем функцию для чтения файла-сборника фраз, которая будет нам возвращать одну случайную фразу
 ```python
 import os
 import random
 
 def get_title() -> str:
     path = os.getenv("PATH_FILE_STORAGE")
-    with open(path, ) as f:
+    with open(path, "r", encoding="utf-8") as f:
         titles = f.readlines()
     title = random.choice(titles)
     return title
 ```
-2. Добавим эту фразу к изображению
+
+3.3. Добавим эту фразу к изображению с нужным шрифтом
 ```python
-from PIL import Image
-from PIL import ImageDraw
+from PIL import Image, ImageFont, ImageDraw
+
+
+def get_font(font_name):
+    try:
+        font = ImageFont.truetype(font_name, 40)
+    except IOError:
+        print("Font file not found. Please provide a valid path to a .ttf or .otf file.")
+        font = ImageFont.load_default()
+    return font
 
 
 def add_title(path_file):
-    title = get_title()
     img = Image.open(path_file)
     image = ImageDraw.Draw(img)
-    image.text((int(img.width/2), int(img.height/1.5)), title)
+    font = get_font("Lobster-Regular.ttf")
+    title = get_title()
+    image.text((int(img.width/2), int(img.height/1.5)), title, align="center", fill='black', font=font)
     img.show()
     return img
 ```
-3. Научим бота отвечать нам картинкой с текстом
+
+
+## Этап 4. Научим бота отвечать нам картинкой с текстом
 ```python
+import requests
+from telebot.apihelper import get_file
+from title import processing_image
+
 @bot.message_handler(func=lambda message: True, content_types=['photo'])
 def message_reply(message):
     file_id = message.photo[-1].file_id
@@ -114,21 +123,10 @@ def message_reply(message):
     url = f"https://api.telegram.org/file/bot{token_bot}/{file_path}"
     response = requests.get(url)
     image = response.content
-    now = datetime.datetime.now().strftime('%Y-%m-%d_%H_%M')
-    folder = os.getenv('PATH_FOLDER')
-    if not os.path.exists(folder):
-        os.mkdir(folder)
-    file_name = f"{now}_{message.chat.id}.jpg"
-    path = os.path.join(folder, file_name)
-    with open(path, 'wb') as f:
-        f.write(image)
-    # сначала отправим текстовое сообщение
-    bot.send_message(message.chat.id, 'Картинка обрабатывается...')
-    image = add_title(path)
-    # а потом картинку с текстом
-    bot.send_photo(message.chat.id, photo=image)
+    new_image = processing_image(image, message.chat.id)
+    bot.send_photo(message.chat.id, photo=new_image)
 ```
-4. Проверяем результат
+## Этап 5. Проверяем результат
 
    ![image](https://github.com/eshmargunov/image_telebot/assets/12861849/9ed2a410-4929-47ec-8e9d-f32c64e41a2f)
 
