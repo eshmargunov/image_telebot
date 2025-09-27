@@ -126,7 +126,39 @@ def message_reply(message):
     new_image = processing_image(image, message.chat.id)
     bot.send_photo(message.chat.id, photo=new_image)
 ```
-## Этап 5. Проверяем результат
+
+## Этап 5. Отправляем картинку в канал
+```python
+@bot.message_handler(func=lambda message: True, content_types=['photo'])
+def message_reply(message):
+    file_id = message.photo[-1].file_id
+    file_info = get_file(token_bot, file_id)
+    file_path = file_info.get('file_path')
+    url = f"https://api.telegram.org/file/bot{token_bot}/{file_path}"
+    response = requests.get(url)
+    image = response.content
+    new_image = processing_image(image, message.chat.id)
+
+    user_data[message.chat.id] = {
+        'processed_image': new_image,
+        'original_message': message
+    }
+
+    # Создаем клавиатуру с вопросом о пересылке
+    keyboard = types.InlineKeyboardMarkup()
+    btn_yes = types.InlineKeyboardButton('Да, отправить в канал', callback_data=SEND_TO.CHANNEL_YES)
+    btn_no = types.InlineKeyboardButton('Нет, только для себя', callback_data=SEND_TO.CHANNEL_NO)
+    keyboard.add(btn_yes, btn_no)
+
+    # Отправляем обработанное фото и вопрос
+    bot.send_photo(
+        message.chat.id,
+        photo=new_image,
+        caption="Картинка обработана! Хочешь отправить ее в наш канал?",
+        reply_markup=keyboard
+    )
+```
+## Этап 6. Проверяем результат
 
    ![image](https://github.com/eshmargunov/image_telebot/assets/12861849/9ed2a410-4929-47ec-8e9d-f32c64e41a2f)
 
